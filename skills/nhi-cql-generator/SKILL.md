@@ -63,7 +63,7 @@ library "[規則編號]" version '0.0.1'
 using FHIR version '4.0.1'
 
 include "FHIRHelpers" version '4.0.1' called FHIRHelpers
-include CDSConnectCommonsForFHIRv401 version '2.1.0' called C3F
+include "CDSConnectCommonsForFHIRv401" version '2.1.0' called C3F
 ```
 
 **Never change**: FHIR version, FHIRHelpers version, C3F version, or aliases.
@@ -76,11 +76,11 @@ After include statements, before codesystem declarations:
 valueset "[中文名稱] valueset": '[ValueSet URL]'
 ```
 
-**URL Pattern**: `https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[sequential-number]`
+**URL Pattern**: `https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[sequential-number]`
 
 **Examples**:
-- `valueset "17022B 呼氣一氧化氮監測(FeNO) valueset": 'https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.6'`
-- `valueset "糖尿病合併慢性腎病變 valueset": 'https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.46'`
+- `valueset "17022B 呼氣一氧化氮監測(FeNO) valueset": 'https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.6'`
+- `valueset "糖尿病合併慢性腎病變 valueset": 'https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.46'`
 
 ### CodeSystem URLs (Complete Approved List)
 
@@ -97,14 +97,6 @@ codesystem "CONDCLINSTATUS": 'http://terminology.hl7.org/CodeSystem/condition-cl
 codesystem "ActCode": 'http://terminology.hl7.org/CodeSystem/v3-ActCode'
 ```
 
-**Always include** (required in every CQL):
-
-```cql
-code "Condition Confirmed code": 'confirmed' from "CONDVERSTATUS" display 'Confirmed'
-
-concept "Condition Confirmed": { "Condition Confirmed code" } display 'Confirmed'
-```
-
 ### Context Declaration
 
 ```cql
@@ -119,7 +111,7 @@ Always use `Patient` context.
 
 ```cql
 define "[適應症或條件名稱]":
-  exists ( Confirmed([Condition: "[valueset名稱]"]) )
+  exists ( C3F.Confirmed([Condition: "[valueset名稱]"]) )
 
 define "MeetsInclusionCriteria":
   "[主要適應症]"
@@ -496,7 +488,7 @@ Based on GT examples, use this complete structure:
       "valueDate": "[YYYY-MM-DD]"
     }
   ],
-  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[number]",
+  "url": "http://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[number]",
   "identifier": [
     {
       "system": "urn:ietf:rfc:3986",
@@ -551,12 +543,12 @@ The ID is the **full OID**, not a custom name. File name matches the ID:
 
 **Critical**: Use `http://` (NOT `https://`) in url field:
 ```json
-"url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[number]"
+"url": "http://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[number]"
 ```
 
 **In CQL**: Use `https://` in valueset declarations:
 ```cql
-valueset "name": 'https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[number]'
+valueset "name": 'https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[number]'
 ```
 
 ### Filter Operators (from GT examples)
@@ -730,7 +722,7 @@ Deliver to user:
 ```markdown
 | CQL ValueSet Declaration | ValueSet File | URL (CQL uses https, JSON uses http) |
 |--------------------------|---------------|---------------------------------------|
-| [中文名稱] valueset | 2.16.840.1.113762.1.4.1287.[N].json | https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[N] |
+| [中文名稱] valueset | 2.16.840.1.113762.1.4.1287.[N].json | https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[N] |
 ```
 
 5. **Validation report**: Confirm all patterns followed ✓
@@ -806,13 +798,13 @@ Activate when user mentions:
 
 **In ValueSet JSON** (url field):
 ```json
-"url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.6"
+"url": "http://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.6"
 ```
 Uses `http://` (no 's')
 
 **In CQL** (valueset declaration):
 ```cql
-valueset "name": 'https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.6'
+valueset "name": 'https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.6'
 ```
 Uses `https://` (with 's')
 
