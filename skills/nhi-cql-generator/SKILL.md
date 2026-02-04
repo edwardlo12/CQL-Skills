@@ -12,8 +12,37 @@ Generate CQL Library (.cql) and FHIR ValueSet (.json) files from Taiwan NHI reim
 This skill generates standardized clinical decision support artifacts for Taiwan's National Health Insurance system:
 1. **CQL Library** - Clinical Quality Language for payment審查邏輯
 2. **FHIR ValueSet** - Code sets (適應症, 禁忌症, 藥品, etc.)
+3. **Dependency Libraries** - Required CQL libraries that must accompany every generated CQL file
 
 **Critical**: All patterns are learned from 50+ GT examples. Do NOT deviate from documented patterns.
+
+### Required Dependency Libraries
+
+Every generated CQL file depends on two shared libraries located in `.github/skills/nhi-cql-generator/assets/`:
+
+1. **FHIRHelpers.cql** (version 4.0.1)
+   - Provides FHIR data model interaction helpers
+   - Converts FHIR types to CQL types
+   - Required by all FHIR-based CQL libraries
+
+2. **CDSConnectCommonsForFHIRv401.cql** (version 2.1.0, aliased as C3F)
+   - Provides common clinical decision support functions that can be used directly
+   - **Frequently used functions**:
+     * `C3F.Confirmed(Conditions)` - Filter confirmed conditions
+     * `C3F.Verified(Observations)` - Filter verified observations  
+     * `C3F.MostRecent(Observations)` - Get most recent observation
+     * `C3F.QuantityValue(Observation)` - Extract quantity value
+     * `C3F.ObservationLookBack(Observations, LookBack)` - Observations in time window
+     * `C3F.MostRecentProcedure(Procedures)` - Get most recent procedure
+     * `C3F.ActiveCondition(Conditions)` - Filter active conditions
+     * `C3F.PeriodToInterval(Period)` - Convert FHIR Period to CQL Interval
+   - **Usage**: Directly use C3F functions with the `C3F.` prefix (e.g., `C3F.Confirmed([Condition: "code"])`)
+   - **Note**: GT examples redundantly redefine these functions, but this is unnecessary - you should use C3F functions directly
+
+**IMPORTANT**: When generating CQL artifacts, you MUST copy these two files to the output directory alongside the generated `.cql` files. Without them, the CQL will fail with error:
+```
+Could not load source for library CDSConnectCommonsForFHIRv401, version 2.1.0, namespace uri null.
+```
 
 ## CQL Structure Patterns
 
@@ -115,50 +144,47 @@ define "Errors":
   null
 ```
 
-### Helper Functions (Always Include at End)
+### Using C3F Helper Functions
 
-**Mandatory** - include all five functions in every CQL file:
+**Direct Usage** - Use C3F library functions directly without redefining them:
 
 ```cql
-define function ObservationLookBack(ObsList List<Observation>, LookBack System.Quantity):
-  ObsList O
-    let LookBackInterval: Interval[Now() - LookBack, Now()]
-    where ( O.effective as FHIR.dateTime ).value in LookBackInterval
-      or ( O.effective as FHIR.instant ).value in LookBackInterval
-      or PeriodToInterval(O.effective as FHIR.Period) overlaps LookBackInterval
-      or O.issued.value in LookBackInterval
+// ✅ Correct: Use C3F functions directly
+define "適應症":
+  exists ( C3F.Confirmed([Condition: "適應症 valueset"]) )
 
-define function Confirmed(CondList List<Condition>):
-  CondList C
-    where C.verificationStatus ~ "Condition Confirmed"
+define "Recent Observations":
+  C3F.ObservationLookBack([Observation: "code"], 1 year)
 
-define function InProgress(EncList List<Encounter>):
-  EncList E
-    where E.status.value = 'in-progress'
-
-define function EncounterLookBack(EncList List<Encounter>, LookBack System.Quantity):
-  EncList E
-    let LookBackInterval: Interval[Now() - LookBack, Now()]
-    where PeriodToInterval(E.period) overlaps LookBackInterval
-
-define function PeriodToInterval(period FHIR.Period):
-  if period is null then null 
-    else Interval[period."start".value, period."end".value]
+define "Lab Value":
+  C3F.QuantityValue( C3F.MostRecent([Observation: "code"]) )
 ```
+
+**Common C3F Functions**:
+- `C3F.Confirmed(Conditions)` - Filters to confirmed conditions (verificationStatus = 'confirmed')
+- `C3F.Verified(Observations)` - Filters to verified observations (status = 'final', 'corrected', or 'amended')
+- `C3F.ObservationLookBack(Observations, LookBack)` - Observations within time window
+- `C3F.MostRecent(Observations)` - Most recent observation by effective date
+- `C3F.QuantityValue(Observation)` - Extract quantity value from observation
+- `C3F.MostRecentProcedure(Procedures)` - Most recent procedure
+- `C3F.ActiveCondition(Conditions)` - Active conditions (clinicalStatus = 'active', no abatement)
+- `C3F.PeriodToInterval(Period)` - Convert FHIR Period to CQL Interval
+
+**Note**: GT examples redundantly redefine these functions at the end of each file, but this is **unnecessary duplication**. Simply use `C3F.FunctionName()` directly.
 
 ## Common Logic Patterns
 
 ### Condition Checking
 
 ```cql
-exists ( Confirmed([Condition: "[valueset名稱]"]) )
+exists ( C3F.Confirmed([Condition: "[valueset名稱]"]) )
 ```
 
 ### Multiple Conditions (OR)
 
 ```cql
-exists ( Confirmed([Condition: "valueset1"])
-    union Confirmed([Condition: "valueset2"])
+exists ( C3F.Confirmed([Condition: "valueset1"])
+    union C3F.Confirmed([Condition: "valueset2"])
 )
 ```
 
@@ -171,7 +197,7 @@ exists ( Confirmed([Condition: "valueset1"])
 ### Observation with Time Window
 
 ```cql
-Count(ObservationLookBack([Observation: "[code]"], 1 year)) < 3
+Count(C3F.ObservationLookBack([Observation: "[code]"], 1 year)) < 3
 ```
 
 ### Age Checking
@@ -696,7 +722,10 @@ Deliver to user:
 
 1. **CQL file**: `[規則編號].cql` (plain text)
 2. **ValueSet file(s)**: One or more `2.16.840.1.113762.1.4.1287.[number].json` files
-3. **Mapping table**: 
+3. **Dependency libraries**: Copy from `.github/skills/nhi-cql-generator/assets/` to output directory:
+   - `FHIRHelpers.cql`
+   - `CDSConnectCommonsForFHIRv401.cql`
+4. **Mapping table**: 
 
 ```markdown
 | CQL ValueSet Declaration | ValueSet File | URL (CQL uses https, JSON uses http) |
@@ -704,7 +733,9 @@ Deliver to user:
 | [中文名稱] valueset | 2.16.840.1.113762.1.4.1287.[N].json | https://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[N] |
 ```
 
-4. **Validation report**: Confirm all patterns followed ✓
+5. **Validation report**: Confirm all patterns followed ✓
+
+**Critical**: The CQL file will NOT execute without the dependency libraries in the same directory. Always include them in the output.
 
 ## Examples
 
