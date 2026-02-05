@@ -1,6 +1,6 @@
 ---
 name: nhi-cql-validator
-description: Validate Taiwan NHI CQL Library (.cql) and FHIR ValueSet (.json) files for compliance with NHI regulations and FHIR standards. Includes syntax checking, format validation, and business logic validation (comparing against original NHI payment rules). Optional auto-fix functionality. Use when user asks to: (1) Validate/check CQL files, (2) Verify ValueSet compliance, (3) Check NHI CQL compliance, (4) Review payment rules implementation, (5) Fix/auto-correct CQL issues, (6) Compare against NHI regulations, or (7) Check logic correctness
+description: "Validate Taiwan NHI CQL Library (.cql) and FHIR ValueSet (.json) files for compliance with NHI regulations and FHIR standards. Includes syntax checking, format validation, and business logic validation (comparing against original NHI payment rules). Optional auto-fix functionality. Use when user asks to: (1) Validate/check CQL files, (2) Verify ValueSet compliance, (3) Check NHI CQL compliance, (4) Review payment rules implementation, (5) Fix/auto-correct CQL issues, (6) Compare against NHI regulations, or (7) Check logic correctness"
 ---
 
 # NHI CQL Validator
