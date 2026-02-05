@@ -2,7 +2,10 @@
 
 ## About
 
-**本存放庫收錄 CQL Skills（技能）。首個技能 `nhi-cql-generator` 可將健保給付規則轉換成可執行的 CQL 與 ValueSet（支援 FHIR R4 / 4.0.1）。**
+**本存放庫收錄 CQL Skills（技能）。目前包含：**
+
+- `nhi-cql-generator`：將健保給付規則轉換成可執行的 CQL 與 ValueSet（支援 FHIR R4 / 4.0.1）。
+- `nhi-cql-validator`：驗證既有的台灣健保 CQL 與 ValueSet 是否符合健保規範與 FHIR 標準（包含語法檢查、業務邏輯覆蓋度分析，以及可選的自動修正功能）。
 
 
 ## Skills (目錄結構)
@@ -18,12 +21,14 @@
 
 ```bash
 npx skills add github:<owner>/<repo>#main --skill skills/nhi-cql-generator
+npx skills add github:<owner>/<repo>#main --skill skills/nhi-cql-validator
 ```
 
 - 或從本機路徑安裝：
 
 ```bash
 npx skills add ./skills/nhi-cql-generator
+npx skills add ./skills/nhi-cql-validator
 ```
 
 安裝後，可用 `npx skills list` 確認已安裝的 Skills，並依照你的 agent 平台（例如 Claude）載入與測試。
