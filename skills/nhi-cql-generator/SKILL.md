@@ -344,12 +344,80 @@ From text patterns like:
 
 ### Frequency Constraints Encoding
 
+**CRITICAL**: Always filter by the **specific NHI procedure code** using `TWMedicalServicePayment` codesystem. NEVER use bare `[Procedure]` (this would match ALL procedures, not the one being regulated).
+
+#### Required: Declare procedure code at top of file
+
+```cql
+codesystem "TWMedicalServicePayment": 'https://twcore.mohw.gov.tw/ig/twcore/CodeSystem/medical-service-payment-tw'
+
+code "[代號] 健保給付代碼": '[代號]' from "TWMedicalServicePayment" display '[項目名稱]'
+```
+
+#### Frequency check pattern
+
+```cql
+// ✅ Correct: counts only THIS specific procedure
+define "頻率符合":
+  Count(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 1 year)) < N
+
+// ❌ WRONG: counts ALL procedures in the patient's history
+define "頻率符合":
+  Count(C3F.ProcedureLookBack([Procedure], 1 year)) < N
+```
+
 | Rule Text | CQL Encoding |
 |-----------|--------------|
 | "一年限申報三次" | `Count(ObservationLookBack([Observation: ...], 1 year)) < 3` |
 | "每四年限申報一次" | `Count(ObservationLookBack([Observation: ...], 4 years)) < 1` |
 | "每人以申報一次為原則" | Track across patient lifetime |
 | "每次就診...每次治療應間隔至少一週" | Date diff checking |
+| "一年限申報三次" | `Count(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 1 year)) < 3` |
+| "每四年限申報一次" | `Count(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 4 years)) < 1` |
+| "每人以申報一次為原則" | `not exists(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 100 years))` |
+| "每週最多N次" | `Count(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 7 days)) < N` |
+| "每月限一次" | `Count(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 30 days)) < 1` |
+
+#### Per-Encounter / Per-Hospitalization check
+
+When the rule says **"限住院期間申報一次"** or **"同一就診申報一次"**, use Encounter reference instead of a time window. A time window (e.g., "1 year") would incorrectly block re-admission for a new event.
+
+```cql
+// 取得目前就醫 Encounter（最近一次進行中或完成的）
+define "目前住院Encounter":
+  Last(
+    [Encounter] E
+      where E.status = 'in-progress' or E.status = 'finished'
+      sort by start of period
+  )
+
+// 本次住院期間尚未申報過本項目
+define "本次住院未申報過":
+  "目前住院Encounter" is not null
+    and not exists(
+      [Procedure: "[代號] 健保給付代碼"] P
+        where P.encounter.reference = 'Encounter/' + "目前住院Encounter".id
+    )
+```
+
+#### "同一治療期間" (Episode of Care) check
+
+When rule says **"同一治療期間至多N次"**, the ideal boundary is `EpisodeOfCare`. As a pragmatic approximation, use Encounter-reference for the per-visit part, and ProcedureLookBack with a reasonable lookback window for the total-count part:
+
+```cql
+define "本次就診未申報":
+  "目前住院Encounter" is not null
+    and not exists(
+      [Procedure: "[代號] 健保給付代碼"] P
+        where P.encounter.reference = 'Encounter/' + "目前住院Encounter".id
+    )
+
+// 治療期間總次數：以 1 年作為最長治療期間的保守估計
+define "治療期間總次數符合":
+  Count(C3F.ProcedureLookBack([Procedure: "[代號] 健保給付代碼"], 1 year)) < N
+```
+
+> **Note**: The ideal approach for "同一治療期間" is to use `EpisodeOfCare`, but this requires the FHIR server to populate `EpisodeOfCare` resources. The time-window approximation is the practical fallback.
 
 ### Other Regulation Handling (其他規範處理)
 
@@ -358,6 +426,31 @@ From text patterns like:
 #### Type 1: Pre-Authorization Criteria → Convert to CQL Logic
 
 These MUST be encoded as executable logic in MeetsInclusionCriteria:
+
+**Pattern: Contraindication** ("禁忌症：...")
+
+When a rule lists contraindications, create a **separate contraindication ValueSet** and check for absence:
+
+```cql
+// 1. Declare a separate contraindication valueset
+valueset "[代號] 禁忌症": 'https://example.org/fhir/ValueSet/2.16.840.1.113762.1.4.1287.[n]'
+
+// 2. Define the contraindication check
+define "有禁忌症":
+  exists ( C3F.Confirmed([Condition: "[代號] 禁忌症"]) )
+
+// 3. Incorporate into MeetsInclusionCriteria
+define "MeetsInclusionCriteria":
+  "Has Indication" and not "有禁忌症"
+
+// 4. Recommendation branches (always check indication first → then contraindication)
+define "Recommendation":
+  if not "Has Indication" then null
+    else if "有禁忌症" then '不得申報。病患符合禁忌症：[詳細原因]。'
+    else '健保給付。...'
+```
+
+**Important**: The contraindication JSON file uses the same structure as the indication ValueSet. Give it a **distinct OID number** (e.g., indication = `.9`, contraindication = `.200`).
 
 **Pattern: Specialist Restriction** ("限...專科醫師執行")
 
